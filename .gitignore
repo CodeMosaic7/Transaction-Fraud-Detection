@@ -1,0 +1,59 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+myenv/
+.venv/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# VS Code settings
+.vscode/
+
+# PyCharm settings
+.idea/
+
+# Streamlit config cache
+.streamlit/config.toml
+.streamlit/*.json
+.streamlit/*.txt
+
+# Data files (optional - keep if they are large or sensitive)
+data/
+*.csv
+*.tsv
+*.xlsx
+*.json
+
+# Model artifacts
+*.pkl
+*.joblib
+*.h5
+*.pt
+*.onnx
+
+# Logs
+*.log
+
+# Outputs and reports
+output/
+reports/
+logs/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Environment config
+.env
+*.env
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
