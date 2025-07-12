@@ -74,6 +74,15 @@ Evaluated using:
 
 ---
 
+## 📬 Screenshots
+
+![Screenshot 1](https://github.com/user-attachments/assets/2ff711a8-0f5e-4dfb-a623-67f69c1eee4b)
+![Screenshot 2](https://github.com/user-attachments/assets/dfe065b8-74a7-4080-83eb-9b6282fddb61)
+![Screenshot 3](https://github.com/user-attachments/assets/4d444bf7-bf68-4245-b52c-b78727f54da0)
+![Screenshot 4](https://github.com/user-attachments/assets/743417b8-4969-4833-868a-1855b2409e44)
+
+---
+
 ## 📌 Requirements
 
 * Python 3.8+
