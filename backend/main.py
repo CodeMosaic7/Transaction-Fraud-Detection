@@ -1,15 +1,14 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-from model.prediction_model import preprocess_data, split_data, train_random_forest, evaluate_model, train_xgboost, load_data
+from model.prediction_model import preprocess_and_split_data, train_random_forest, evaluate_model, train_xgboost, load_data
 import pickle
 import os
 
 # Set page config
 st.set_page_config(
-    page_title="Fraud Detection System",
+    page_title="Fraud Detection Model",
     page_icon="🛡️",
-    layout="wide"
+    layout="wide",
 )
 
 # Custom CSS for better styling
@@ -71,59 +70,63 @@ def train_model():
         try:
             # Load and preprocess data
             data = load_data('data/data.csv')
-            preprocessed_data = preprocess_data(data, target_col='is_fraud')
-            X_train, X_test, y_train, y_test = split_data(preprocessed_data, target_column='is_fraud')
-            
+            X_train, X_test, y_train, y_test = preprocess_and_split_data(data, target_col='is_fraud')
+            print(X_train.info())
+
             # Train Random Forest model
             rf_model = train_random_forest(X_train, y_train)
-            
+
             # Evaluate model
             rf_metrics = evaluate_model(rf_model, X_test, y_test)
-            
+
             # Save model
             save_model(rf_model, 'trained_model.pkl')
-            
+
+            # ✅ Save feature names used in training
+            with open("model_columns.pkl", "wb") as f:
+                pickle.dump(X_train.columns.tolist(), f)
+
             # Store in session state
             st.session_state.model = rf_model
             st.session_state.metrics = rf_metrics
             st.session_state.feature_names = X_train.columns.tolist()
-            
+
             st.success("✅ Model trained successfully!")
-            
+
             # Display metrics in cards
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.markdown(f"""
                 <div class="metric-card">
                     <h3>Accuracy</h3>
-                    <h2>{rf_metrics['accuracy']:.3f}</h2>
+                    <h2>{rf_metrics['accuracy']}</h2>
                 </div>
                 """, unsafe_allow_html=True)
-            
+
             with col2:
                 st.markdown(f"""
                 <div class="metric-card">
                     <h3>Precision</h3>
-                    <h2>{rf_metrics['precision']:.3f}</h2>
+                    <h2>{rf_metrics['precision']}</h2>
                 </div>
                 """, unsafe_allow_html=True)
-            
+
             with col3:
                 st.markdown(f"""
                 <div class="metric-card">
                     <h3>Recall</h3>
-                    <h2>{rf_metrics['recall']:.3f}</h2>
+                    <h2>{rf_metrics['recall']}</h2>
                 </div>
                 """, unsafe_allow_html=True)
-            
+
             with col4:
                 st.markdown(f"""
                 <div class="metric-card">
                     <h3>F1 Score</h3>
-                    <h2>{rf_metrics['f1_score']:.3f}</h2>
+                    <h2>{rf_metrics['f1_score']}</h2>
                 </div>
                 """, unsafe_allow_html=True)
-            
+
         except Exception as e:
             st.error(f"❌ Error training model: {str(e)}")
 
@@ -134,21 +137,35 @@ def predict_fraud(input_data):
     if model is None:
         st.error("❌ No trained model found. Please train the model first.")
         return None
-    
+
+    # Load saved feature names
+    try:
+        with open("model_columns.pkl", "rb") as f:
+            model_columns = pickle.load(f)
+    except:
+        st.error("❌ Feature columns file not found. Re-train the model.")
+        return None
+
     try:
         # Convert input to DataFrame
         input_df = pd.DataFrame([input_data])
-        
-        # Make prediction
-        prediction = model.predict(input_df)[0]
-        probability = model.predict_proba(input_df)[0]
-        
+
+        # Encode categorical variables (same as training)
+        input_encoded = pd.get_dummies(input_df)
+
+        # Align with model columns (important!)
+        input_encoded = input_encoded.reindex(columns=model_columns, fill_value=0)
+
+        # Predict
+        prediction = model.predict(input_encoded)[0]
+        probability = model.predict_proba(input_encoded)[0]
+
         return {
             'prediction': prediction,
             'fraud_probability': probability[1],
             'safe_probability': probability[0]
         }
-    
+
     except Exception as e:
         st.error(f"❌ Error making prediction: {str(e)}")
         return None
@@ -159,7 +176,7 @@ def main():
     
     # Sidebar for navigation
     st.sidebar.title("Navigation")
-    tab = st.sidebar.radio("Choose Action:", ["🔍 Detect Fraud", "🤖 Train Model", "📊 Model Info"])
+    tab = st.sidebar.radio("Choose Action:", ["📊 Model Info","🤖 Train Model","🔍 Detect Fraud" ])
     
     if tab == "🔍 Detect Fraud":
         st.header("🔍 Fraud Detection")
@@ -179,35 +196,44 @@ def main():
         
         with col1:
             amount = st.number_input("💰 Transaction Amount", min_value=0.01, value=100.0, step=0.01)
-            merchant_category = st.selectbox("🏪 Merchant Category", 
-                                           ["grocery", "gas_station", "restaurant", "retail", "online", "other"])
-            hour = st.slider("🕒 Hour of Transaction", 0, 23, 12)
-        
+            transaction_type = st.selectbox("💳 Transaction Type", ["purchase", "transfer", "withdrawal", "deposit"])
+            channel = st.selectbox("🌐 Transaction Channel", ["online", "mobile_app", "ATM", "branch"])
+            is_international = st.selectbox("✈️ Is International Transaction?", ["no", "yes"]) == "yes"
+            velocity_1h=st.number_input("⏱️ Velocity (1 Hour)", min_value=0, value=5, step=1)
+
         with col2:
-            day_of_week = st.selectbox("📅 Day of Week", 
-                                     ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"])
-            location_risk = st.selectbox("📍 Location Risk", ["low", "medium", "high"])
-            user_age = st.number_input("👤 User Age", min_value=18, max_value=100, value=30)
-        
+            avg_7_days = st.number_input("📊 Avg. Transaction Amount (Last 7 Days)", min_value=0.0, value=95.0, step=0.01)
+            deviation = st.number_input("📉 Deviation from User Avg Amount", min_value=0.0, value=5.0, step=0.01)
+            failed_logins = st.number_input("🚫 Failed Logins Before Transaction",min_value=0, value=0, step=1)
+            account_age = st.number_input("📅 Account Age (in days)", min_value=1, value=365, step=1)
+            velocity_24h=st.number_input("🚫 Failed Logins Before Transactions  in 24h", min_value=0, value=1, step=1)
+            
+                
         st.markdown('</div>', unsafe_allow_html=True)
         
-        # Predict button
+       
         if st.button("🔍 Detect Fraud", type="primary"):
-            # Prepare input data (adjust based on your actual features)
+            # transaction_amount	transaction_type	channel	is_international	average_transaction_amount_last_7_days	deviation_from_user_average_amount	number_of_failed_logins_before_transaction	account_age	velocity_1h	velocity_24h
             input_data = {
-                'amount': amount,
-                'merchant_category': merchant_category,
-                'hour': hour,
-                'day_of_week': day_of_week,
-                'location_risk': location_risk,
-                'user_age': user_age
-            }
+                    'transaction_amount': round(amount, 2),
+                    'transaction_type': transaction_type,
+                    'channel': channel,
+                    'is_international': is_international,
+                    'average_transaction_amount_last_7_days': round(avg_7_days, 2),
+                    'deviation_from_user_average_amount': round(deviation, 3),
+                    'number_of_failed_logins_before_transaction': failed_logins,
+                    'account_age': int(account_age),
+                    'velocity_1h':int(velocity_1h),
+                    'velocity_24h':int(velocity_24h)
+                    
+                }
+
             
             # Make prediction
             result = predict_fraud(input_data)
             
             if result:
-                # Display result
+                
                 if result['prediction'] == 1:
                     st.markdown(f"""
                     <div class="prediction-result fraud-alert">
@@ -223,7 +249,7 @@ def main():
                     </div>
                     """, unsafe_allow_html=True)
                 
-                # Show probability breakdown
+                
                 st.subheader("📊 Probability Breakdown")
                 col1, col2 = st.columns(2)
                 
